@@ -1,4 +1,4 @@
-import { Consumer, EachMessagePayload, Kafka } from "kafkajs";
+import { Consumer, EachMessagePayload, Kafka, KafkaConfig } from "kafkajs";
 import config from "config";
 import { MessageBroker } from "../types/broker";
 import { createNotificationTransport } from "../factories/notification-factory";
@@ -11,7 +11,25 @@ export class KafkaBroker implements MessageBroker {
   private consumer: Consumer;
 
   constructor(clientId: string, brokers: string[]) {
-    const kafka = new Kafka({ clientId, brokers });
+    let kafkaConfig: KafkaConfig = {
+      clientId,
+      brokers,
+    };
+
+    if (process.env.NODE_ENV === "production") {
+      kafkaConfig = {
+        ...kafkaConfig,
+        ssl: true,
+        connectionTimeout: 45000,
+        sasl: {
+          mechanism: "plain",
+          username: config.get("kafka.sasl.username"),
+          password: config.get("kafka.sasl.password"),
+        },
+      };
+    }
+
+    const kafka = new Kafka(kafkaConfig);
 
     this.consumer = kafka.consumer({ groupId: clientId });
   }
@@ -47,7 +65,6 @@ export class KafkaBroker implements MessageBroker {
         });
 
         if (topic === "order") {
-
           //todo:Decide whether to send notification or not. according to event_type.
           const transport = createNotificationTransport("mail");
 
